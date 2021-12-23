@@ -1,4 +1,6 @@
-# README
+# Cognitive Robotics Pepper
+This repo is a final class project on Cognitive Robotics using Pepper Robot.
+
 In order to run the project you should follow these steps:
 
 - Run the following command to bring up Pepper:
