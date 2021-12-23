@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+import rospy
+from sensor_msgs.msg import Image
+from pepper_sociale_pkg.srv import Detect
+from pepper_sociale_pkg.msg import DetectionInfo
+from utils.PepperHandler import PepperHandler
+
+
+"""
+Questo file contiene il nodo, chiamato pepper_object_recognition, che ha il compito di coordinare le azione degli altri nodi.
+Rappresenta il core del progetto, infatti permette al robot di girare la testa nell'ordine e nelle posizioni
+prestabilite (left, center, right). In ognuna di queste posizioni ottiene un'immagine richiamando il metodo rospy.wait_for_message() sul topic relativo alla camera frontale del robot.
+Richiama quindi il servizio per effettuare la detection e salva lo stato della testa e i risultati della detection in un unico messaggio che pubblica
+sul topic /detection_and_head_position.
+"""
+# inizializza i nodi e registra i topic dei Publisher al nodo master
+rospy.init_node('pepper_object_recognition')
+pub_detection = rospy.Publisher('detection_and_head_position', DetectionInfo, queue_size=0)
+pepper_handler=PepperHandler()
+
+
+def detect_image_client(img):
+    """
+    funzione che chiama il servizio detect_service, fungendone da Client.
+    Riceve un'istanza di tipo Image e restituisce un oggetto del tipo Detection2DArray
+    """
+    rospy.wait_for_service('detect_service') # attendende che il servizio sia pronto
+    rospy.loginfo("Detection service invoked")
+    try:
+        detect_service = rospy.ServiceProxy('detect_service', Detect) #istanzia il proxy al servizio detect_service
+        msg = detect_service(img) # invoca il servizio con un'istanza di Image per ottenere un'istanza di DetectResponse
+        return msg.det # restituisce l'istanza di tipo Detection2DArray prelevandola dall'oggetto DetectResponse
+    except rospy.ServiceException as e:
+        print("Service call failed: %s"%e)
+
+
+def apply_detection():
+    current_img_msg = rospy.wait_for_message("/pepper_robot/camera/front/camera/image_raw", Image) #si iscrive al topic messo a disposizione da Pepper, prende l'immagine corrente e annulla l'iscrizione 
+    detection_msg=detect_image_client(current_img_msg)
+    return detection_msg
+
+rospy.sleep(2.0) # attende 2 secondi all'inizio
+pepper_handler.turn_head('start') # gira la testa al centro
+pepper_handler.publish_detection([],'start') #pubblica un messaggio di tipo DetectionInfo, utilizzando una lista vuota e lo stato di start per indicare che e nella posizione di start e sta quindi per iniziare a girare la testa
+
+apply_detection() # utilizziamo il detector su un'immagine prima di iniziare a far girare la testa al robot per ultimare l'inizializzazione della rete e consentire un tempo costante per le successive detection 
+rospy.loginfo("Detection service ready")
+
+for pos in ['left','center','right']: # gira la testa, in ordine, prima a sinistra, poi al centro e poi a destra 
+    
+    pepper_handler.turn_head(pos) #gira la testa nella posizione corrente
+    rospy.sleep(2.0) #attendi che la testa si fermi e l'immagine sia stabile e non in movimento
+    detection_msg=apply_detection() #chiamata al servizio per la detection
+    pepper_handler.publish_detection(detection_msg.detections,pos) #pubblica il risultato della detection e l'informazione 
+    
+
+pepper_handler.turn_head('home') #Torna nella posizione di home (mette la testa in posizione centrale)
+rospy.sleep(1.0) 
+pepper_handler.publish_detection([],'home') #pubblica lo stato home per indicare che ha terminato le operazioni
+  
+

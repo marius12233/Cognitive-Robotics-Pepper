@@ -1,0 +1,6 @@
+<launch>
+  <node name="speech_server" pkg="pepper_sociale_pkg" type="speech_server" output="screen"/>
+  <node name="pepper_speech" pkg="pepper_sociale_pkg" type="pepper_speech" output="screen"/>
+  <node name="detector_server" pkg="pepper_sociale_pkg" type="detector_server" output="screen"/>
+  <node name="pepper_object_recognition" pkg="pepper_sociale_pkg" type="pepper_object_recognition" output="screen"/>
+</launch>
